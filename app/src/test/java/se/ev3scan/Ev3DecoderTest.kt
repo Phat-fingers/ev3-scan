@@ -80,4 +80,22 @@ class Ev3DecoderTest {
         assertEquals(32, cells.size)
         assertTrue(cells.all { kotlin.math.abs(it - 3.48) < 0.001 })
     }
+
+    @Test
+    fun decodesVcmsE001() {
+        val raw = """
+            74C102762E001FFFFFF
+            74C21C0000000010000
+            74C220004F705032804
+            74C2300910F70010E00
+            74C2400002500000000
+            74C257E01001320AAAA
+        """.trimIndent()
+        val c = VcmsDecoder.applyE001(ChargerInfo(), ElmParser.udsPayload(raw, 0xE001, "74C"))
+        assertEquals(395.2, c.obcDcVoltage!!, 0.001)
+        assertEquals(27.0, c.obcDcCurrent!!, 0.001)
+        assertEquals(-50, c.estimatedPowerW)
+        assertEquals(false, c.acCharging)
+        assertEquals(false, c.dcCharging)
+    }
 }

@@ -56,11 +56,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -69,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val Green = Color(0xFF2BD47D)
 private val Orange = Color(0xFFFFA726)
@@ -296,7 +299,7 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
                         Text(
                             when {
                                 p == null -> ""
-                                p < -0.3 -> if (m.charging == true) "laddar" else "regenererar"
+                                p < -0.3 -> if (s.isCharging == true) "laddar" else "regenererar"
                                 p > 0.3 -> "förbrukar"
                                 else -> "vila"
                             },
@@ -316,6 +319,8 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
                 )
             }
         }
+
+        if (s.isCharging == true || s.charger.socketConnected == true) ChargingSection(s, m)
 
         Section("Batterihälsa") {
             Row2("SoH", f(h?.sohPct, 1, "%"))
@@ -354,11 +359,12 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
             )
         }
 
+        if (!(s.isCharging == true || s.charger.socketConnected == true)) ChargingSection(s, m)
+
         Section("Status") {
-            Row2("Laddar", yn(m.charging))
-            Row2("Snabbladdningskontakt", yn(m.rapidPlug))
-            Row2("Normal laddkontakt", yn(m.normalPlug))
-            Row2("Huvudrelä", yn(m.mainRelay))
+            Row2("Laddar", yn(s.isCharging))
+            Row2("Laddkabel ansluten", yn(s.charger.socketConnected))
+            Row2("Huvudrelä", yn(s.charger.mainRelay ?: m.mainRelay))
             Row2("Motorvarvtal", i(m.motorRpm, "rpm"))
             Row2("Isolationsresistans", i(m.isolationKohm, "kΩ"))
         }
@@ -371,6 +377,31 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
         }
 
         Text("Adapter: ${s.elmVersion ?: "–"}", color = Muted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+fun ChargingSection(s: UiState, m: BatteryMain) {
+    val c = s.charger
+    Section("Laddning") {
+        if (!s.vcmsOk) {
+            Text("Laddstyrenheten (744) svarar inte – visar bara batteriets värden.", color = Muted, fontSize = 12.sp)
+        }
+        val type = when {
+            c.dcCharging == true -> "DC (snabbladdning)"
+            c.acCharging == true -> "AC"
+            s.isCharging == true -> "Ja"
+            else -> "Nej"
+        }
+        Row2("Laddar", type, valueColor = if (s.isCharging == true) Green else Color.White)
+        Row2("Effekt in i batteriet", f(m.powerKw?.let { maxOf(0.0, -it) }, 1, "kW"))
+        Row2("Beräknad laddeffekt (VCMS)", f(c.estimatedPowerW?.takeIf { it > 0 }?.div(1000.0), 1, "kW"))
+        Row2("Ombordladdare AC", "${f(c.obcAcCurrent, 1, "A")} · ${i(c.obcAcVoltage, "V")}")
+        Row2("Ombordladdare DC", "${f(c.obcDcCurrent, 1, "A")} · ${f(c.obcDcVoltage, 0, "V")}")
+        Row2("Laddkabel (CP)", "${f(c.cpVoltage, 1, "V")} · ${f(c.cpDuty, 0, "%")}")
+        val mins = listOfNotNull(c.acMinutesSincePlug, c.dcMinutesSincePlug).maxOrNull()
+        Row2("Tid sedan inkoppling", i(mins, "min"))
+        Row2("Laddintag AC / DC", "${i(c.acInletT)} / ${i(c.dcInletT1)} °C")
     }
 }
 
@@ -458,8 +489,26 @@ fun LogView(vm: ScannerViewModel, s: UiState, modifier: Modifier = Modifier) {
                 Button(onClick = { vm.sendManual(input) }) { Text("Skicka") }
             }
         }
+        val ctx = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var dumping by remember { mutableStateOf(false) }
         Row {
             TextButton(onClick = vm::clearLog) { Text("Rensa") }
+            if (s.conn == ConnState.CONNECTED) {
+                TextButton(enabled = !dumping, onClick = {
+                    dumping = true
+                    scope.launch {
+                        val text = vm.dumpRaw()
+                        dumping = false
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "EV3 Scan rådata")
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        ctx.startActivity(Intent.createChooser(send, "Dela rådata"))
+                    }
+                }) { Text(if (dumping) "Läser …" else "Dela rådata") }
+            }
         }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
             items(s.log) { line ->

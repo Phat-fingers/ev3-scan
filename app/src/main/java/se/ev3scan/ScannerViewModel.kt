@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,12 +43,25 @@ data class UiState(
     val main: BatteryMain? = null,
     val health: BatteryHealth? = null,
     val cells: List<Double> = emptyList(),
+    val charger: ChargerInfo = ChargerInfo(),
+    val vcmsOk: Boolean = false,
     val peakDischargeKw: Double = 0.0,
     val peakChargeKw: Double = 0.0,
     val lastUpdate: Long = 0,
     val errorStreak: Int = 0,
     val log: List<String> = emptyList(),
-)
+) {
+    /** Laddar: VCMS-flaggor i första hand, annars negativ batteriström med stillastående motor. */
+    val isCharging: Boolean?
+        get() {
+            if (charger.acCharging == true || charger.dcCharging == true) return true
+            val m = main ?: return null
+            val cur = m.currentA ?: return null
+            if (cur < -1.0 && (m.motorRpm ?: 0) == 0) return true
+            if (charger.acCharging == false && charger.dcCharging == false) return false
+            return cur < -1.0 && (m.motorRpm ?: 0) == 0
+        }
+}
 
 @SuppressLint("MissingPermission")
 class ScannerViewModel(app: Application) : AndroidViewModel(app) {
@@ -60,6 +75,7 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
     private var pollJob: Job? = null
     private var scanStopJob: Job? = null
     private var currentHeader: String? = null
+    private val busMutex = Mutex()
 
     /** Sätts av UI:t när fliken Celler syns, så att vi bara läser celler då. */
     @Volatile var cellsVisible = false
@@ -210,16 +226,56 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
         currentHeader = tx
     }
 
-    private suspend fun readDid(t: BleElmTransport, did: Int): ByteArray {
-        setHeader(t, Ev3Decoder.BMS_TX, Ev3Decoder.BMS_RX)
-        val c = "22%04X".format(did)
-        val raw = t.send(c, 3_000)
+    private suspend fun rawDid(t: BleElmTransport, tx: String, rx: String, did: Int): String =
+        busMutex.withLock {
+            setHeader(t, tx, rx)
+            t.send("22%04X".format(did), 3_000)
+        }
+
+    private suspend fun readDid(
+        t: BleElmTransport, did: Int,
+        tx: String = Ev3Decoder.BMS_TX, rx: String = Ev3Decoder.BMS_RX, quiet: Boolean = false,
+    ): ByteArray {
+        val raw = rawDid(t, tx, rx, did)
         return try {
-            ElmParser.udsPayload(raw, did, Ev3Decoder.BMS_RX)
+            ElmParser.udsPayload(raw, did, rx)
         } catch (e: ElmException) {
-            log("> $c\n${raw.trim()}")
+            if (!quiet) log("> $tx 22%04X\n${raw.trim()}".format(did))
             throw e
         }
+    }
+
+    private suspend fun pollVcms(t: BleElmTransport, full: Boolean) {
+        var c = _state.value.charger
+        var ok = false
+        try { c = VcmsDecoder.applyE001(c, readDid(t, VcmsDecoder.DID_E001, VcmsDecoder.TX, VcmsDecoder.RX, true)); ok = true } catch (_: ElmException) { }
+        try { c = VcmsDecoder.applyE004(c, readDid(t, VcmsDecoder.DID_E004, VcmsDecoder.TX, VcmsDecoder.RX, true)); ok = true } catch (_: ElmException) { }
+        if (full) {
+            try { c = VcmsDecoder.applyE003(c, readDid(t, VcmsDecoder.DID_E003, VcmsDecoder.TX, VcmsDecoder.RX, true)) } catch (_: ElmException) { }
+        }
+        if (ok != _state.value.vcmsOk) log(if (ok) "Laddstyrenheten (744) svarar" else "Laddstyrenheten (744) svarar inte")
+        _state.update { it.copy(charger = c, vcmsOk = ok) }
+    }
+
+    /** Läser alla relevanta DID:ar och returnerar råsvaren som text att dela. */
+    suspend fun dumpRaw(): String {
+        val t = transport ?: return "Inte ansluten"
+        val sb = StringBuilder()
+        sb.append("EV3 Scan rådump ").append(Date()).append('\n')
+        sb.append("Adapter: ").append(_state.value.elmVersion).append('\n')
+        val m = _state.value.main
+        sb.append("Tolkat: SoC=${m?.socBms} I=${m?.currentA}A U=${m?.voltageV}V rpm=${m?.motorRpm} laddar=${_state.value.isCharging}\n\n")
+        val list = listOf(
+            Triple("7E4", "7EC", 0x0101), Triple("7E4", "7EC", 0x0105), Triple("7E4", "7EC", 0x0106),
+            Triple("744", "74C", 0xE001), Triple("744", "74C", 0xE002),
+            Triple("744", "74C", 0xE003), Triple("744", "74C", 0xE004),
+        )
+        for ((tx, rx, did) in list) {
+            val raw = try { rawDid(t, tx, rx, did) } catch (e: Exception) { "FEL: ${e.message}" }
+            sb.append("[$tx 22%04X]\n".format(did)).append(raw.trim().replace("\r", "\n")).append("\n\n")
+        }
+        log("Rådump klar (${list.size} DID:ar)")
+        return sb.toString()
     }
 
     private suspend fun pollLoop(t: BleElmTransport) {
@@ -248,6 +304,8 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
                     if (!firstHealthLogged) { log("220105 → ${h.toHex()}"); firstHealthLogged = true }
                     _state.update { it.copy(health = Ev3Decoder.decodeHealth(h)) }
                 }
+
+                if (i % 3 == 1) pollVcms(t, full = i % 15 == 1)
 
                 if (cellsVisible && i % 4 == 0) {
                     val all = ArrayList<Double>()
@@ -288,8 +346,10 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
         if (command.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                if (command.startsWith("ATSH")) currentHeader = command.removePrefix("ATSH")
-                cmd(t, command, 5_000)
+                busMutex.withLock {
+                    if (command.startsWith("ATSH")) currentHeader = command.removePrefix("ATSH")
+                    cmd(t, command, 5_000)
+                }
             } catch (e: Exception) {
                 log("Fel: ${e.message}")
             }

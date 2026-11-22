@@ -111,3 +111,64 @@ object Ev3Decoder {
     fun decodeCells(d: ByteArray): List<Double> =
         (4 until minOf(36, d.size)).map { (d[it].toInt() and 0xFF) / 50.0 }
 }
+
+/**
+ * Laddstyrenheten VCMS (CAN 744 -> 74C), DID E001/E003/E004.
+ * Positioner från OBDb/Kia-EV3, index 0 = första byten efter "62 E0 0x".
+ */
+data class ChargerInfo(
+    val dcCharging: Boolean? = null,
+    val acCharging: Boolean? = null,
+    val obcDcVoltage: Double? = null,
+    val obcDcCurrent: Double? = null,
+    val obcAcCurrent: Double? = null,
+    val obcAcVoltage: Int? = null,
+    val estimatedPowerW: Int? = null,
+    val cpVoltage: Double? = null,
+    val cpDuty: Double? = null,
+    val acMinutesSincePlug: Int? = null,
+    val dcMinutesSincePlug: Int? = null,
+    val mainRelay: Boolean? = null,
+    val socketConnected: Boolean? = null,
+    val dcInletT1: Int? = null,
+    val dcInletT2: Int? = null,
+    val acInletT: Int? = null,
+)
+
+object VcmsDecoder {
+    const val TX = "744"
+    const val RX = "74C"
+    const val DID_E001 = 0xE001
+    const val DID_E003 = 0xE003
+    const val DID_E004 = 0xE004
+
+    private fun u8(d: ByteArray, i: Int): Int? = if (i in d.indices) d[i].toInt() and 0xFF else null
+    private fun u16(d: ByteArray, i: Int): Int? =
+        if (i >= 0 && i + 1 < d.size) ((d[i].toInt() and 0xFF) shl 8) or (d[i + 1].toInt() and 0xFF) else null
+    private fun bit(d: ByteArray, i: Int, mask: Int): Boolean? = u8(d, i)?.let { (it and mask) != 0 }
+
+    fun applyE001(c: ChargerInfo, d: ByteArray) = c.copy(
+        dcCharging = bit(d, 17, 0x08),
+        acCharging = bit(d, 17, 0x04),
+        obcDcVoltage = u16(d, 19)?.div(10.0),
+        obcDcCurrent = u16(d, 21)?.div(10.0),
+        obcAcCurrent = u16(d, 23)?.div(10.0),
+        obcAcVoltage = u8(d, 25),
+        estimatedPowerW = u16(d, 28)?.let { it * 10 - 50 },
+    )
+
+    fun applyE003(c: ChargerInfo, d: ByteArray) = c.copy(
+        cpVoltage = u8(d, 6)?.div(10.0),
+        cpDuty = u16(d, 7)?.div(10.0),
+        acMinutesSincePlug = u16(d, 42),
+        dcMinutesSincePlug = u16(d, 44),
+    )
+
+    fun applyE004(c: ChargerInfo, d: ByteArray) = c.copy(
+        mainRelay = bit(d, 4, 0x04),
+        socketConnected = bit(d, 4, 0x02),
+        dcInletT1 = u8(d, 8)?.minus(50),
+        dcInletT2 = u8(d, 9)?.minus(50),
+        acInletT = u8(d, 10)?.minus(50),
+    )
+}
