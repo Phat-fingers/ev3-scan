@@ -78,6 +78,8 @@ private val Orange = Color(0xFFFFA726)
 private val Red = Color(0xFFEF5350)
 private val Blue = Color(0xFF4FC3F7)
 private val Muted = Color(0xFF9AA4AE)
+private val Bg = Color(0xFF101418)
+private val TextMain = Color(0xFFE8EDF2)
 
 class MainActivity : ComponentActivity() {
     private val vm: ScannerViewModel by viewModels()
@@ -86,8 +88,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Green, secondary = Blue)) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF101418)) {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = Green,
+                    secondary = Blue,
+                    background = Bg,
+                    surface = Bg,
+                    onBackground = TextMain,
+                    onSurface = TextMain,
+                )
+            ) {
+                // contentColor gör att all text utan egen färg blir ljus i stället för svart
+                Surface(modifier = Modifier.fillMaxSize(), color = Bg, contentColor = TextMain) {
                     App(vm, ::hasPermissions)
                 }
             }
@@ -183,7 +195,7 @@ fun ConnectScreen(
     var showLog by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text(
-            "1. Sätt UCSI-2100 i OBD-uttaget (under ratten, vänster sida).\n" +
+            "1. Sätt i din OBD2-adapter (Bluetooth LE) i OBD-uttaget under ratten, vänster sida.\n" +
                 "2. Slå på bilen så den är i READY (eller laddar).\n" +
                 "3. Sök och välj adaptern.\n\nParkoppla INTE adaptern i Androids Bluetooth-inställningar – appen ansluter själv.",
             color = Muted, fontSize = 14.sp,
@@ -218,6 +230,15 @@ fun ConnectScreen(
         if (showLog) {
             LogView(vm, s, Modifier.weight(1f))
         } else {
+            if (s.conn == ConnState.IDLE && s.devices.isNotEmpty() && s.devices.none { it.looksLikeObd }) {
+                Text(
+                    "Ser du inte din adapter? Den måste vara av typen Bluetooth LE (ofta märkt \"BLE\" eller \"4.0\"). " +
+                        "Äldre adaptrar med vanlig Bluetooth fungerar inte. Testad med UniCarScan UCSI-2100. " +
+                        "Prova adaptrar i listan nedan om namnet är okänt.",
+                    color = Orange, fontSize = 13.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(s.devices, key = { it.address }) { d ->
                     Card(
