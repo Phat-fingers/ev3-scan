@@ -83,6 +83,22 @@ Klassiska Bluetooth-adaptrar (SPP, ej "BLE"/"4.0") stöds inte.
 **Hjälp till:** Ser något fel ut? Gå till **Logg → Dela rådata** och skicka texten i en
 [issue](../../issues) tillsammans med vad bilen gjorde (t.ex. "AC-laddar 11 kW hemma").
 
+## Är appen säker?
+
+Rimlig fråga – installera aldrig APK-filer du inte litar på. Så här kan du kontrollera själv:
+
+- **Ingen internetbehörighet.** Appen har inte Androids `INTERNET`-behörighet och *kan*
+  därför inte skicka något någonstans. Kontrollera under *Inställningar → Appar → EV3 Scan →
+  Behörigheter*: där finns bara **Enheter i närheten** (Bluetooth). Platsbehörighet efterfrågas
+  bara på Android 11 och äldre, eftersom Android då kräver det för Bluetooth-sökning.
+- **Öppen källkod.** All kod finns i det här repot. APK-filerna byggs automatiskt av
+  GitHub Actions från koden – se [Actions](../../actions) – inte på någons dator.
+- **Läser bara.** Appen skickar endast läsförfrågningar (UDS-tjänst `0x22`) till bilen och
+  skriver aldrig till någon styrenhet.
+- **Signerad.** Alla versioner är signerade med samma nyckel. Certifikatets SHA-256:
+  `59:E2:C5:70:91:B2:61:19:A9:62:42:0F:71:6D:E2:F3:DE:D2:CC:E5:F4:6C:89:8B:32:48:90:87:61:E4:60:AB`
+- **Skanna gärna** APK-filen på [VirusTotal](https://www.virustotal.com) innan du installerar.
+
 ## Ansvarsfriskrivning
 
 Inofficiell app, inte kopplad till eller godkänd av Kia. Appen **läser endast** data och
