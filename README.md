@@ -97,7 +97,9 @@ Rimlig fråga – installera aldrig APK-filer du inte litar på. Så här kan du
   skriver aldrig till någon styrenhet.
 - **Signerad.** Alla versioner är signerade med samma nyckel. Certifikatets SHA-256:
   `59:E2:C5:70:91:B2:61:19:A9:62:42:0F:71:6D:E2:F3:DE:D2:CC:E5:F4:6C:89:8B:32:48:90:87:61:E4:60:AB`
-- **Skanna gärna** APK-filen på [VirusTotal](https://www.virustotal.com) innan du installerar.
+- **VirusTotal:** [rapport för version 0.1.12](https://www.virustotal.com/gui/file/8566f9c14008afc5b49a44464f9581c72a84dfb0439d3a34e3a22fe7f0604c13/detection)
+  (SHA-256 `8566f9c14008afc5b49a44464f9581c72a84dfb0439d3a34e3a22fe7f0604c13`).
+  Du kan också skanna filen själv på [virustotal.com](https://www.virustotal.com).
 
 ## Ansvarsfriskrivning
 
