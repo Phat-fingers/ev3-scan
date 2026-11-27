@@ -91,10 +91,16 @@ GitHub Actions bygger, testar och publicerar en signerad APK vid varje push till
 Lokalt: öppna projektet i Android Studio, eller kör `gradle assembleDebug`
 (Gradle 8.11, JDK 17).
 
+## Licens
+
+Koden är licensierad under **GPL-3.0** – se [LICENSE](LICENSE). Du får använda, ändra och
+dela den, men ändrade versioner som sprids måste också vara öppna under GPL-3.0.
+Signaldefinitionerna från OBDb omfattas av CC BY-SA 4.0.
+
 ## English summary
 
 EV3 Scan is a free, read-only Android app for the Kia EV3. With a Bluetooth LE ELM327 adapter
 (tested: UniCarScan UCSI-2100) it shows SoC, SoH, battery/module temperatures, all cell voltages,
 power, and — while DC fast charging — the BMS target current and the charger's limits, so you can
 tell whether the car or the station is limiting. AC charging is not verified yet; raw-data dumps
-(**Logg → Dela rådata**) in an issue are very welcome. Unofficial, not affiliated with Kia.
+(**Logg → Dela rådata**) in an issue are very welcome. Unofficial, not affiliated with Kia. Licensed under GPL-3.0.
