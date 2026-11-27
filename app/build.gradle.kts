@@ -20,13 +20,6 @@ android {
     }
 
     signingConfigs {
-        getByName("debug") {
-            // Fast nyckel i repot så att varje CI-bygge kan installeras ovanpå det förra
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
         create("release") {
             if (keystorePath != null) {
                 storeFile = file(keystorePath)
@@ -43,6 +36,10 @@ android {
             signingConfig = if (keystorePath != null) {
                 signingConfigs.getByName("release")
             } else {
+                // På CI får en release aldrig signeras med en annan nyckel än den riktiga
+                if (System.getenv("CI") != null) {
+                    throw GradleException("Signeringsnyckel saknas: lägg in KEYSTORE_B64 m.fl. som GitHub-hemligheter")
+                }
                 signingConfigs.getByName("debug")
             }
         }
