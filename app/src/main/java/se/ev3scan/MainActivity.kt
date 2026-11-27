@@ -320,7 +320,7 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
             }
         }
 
-        if (s.isCharging == true || s.charger.socketConnected == true) ChargingSection(s, m)
+        if (s.isCharging == true || s.isPlugged == true) ChargingSection(s, m)
 
         Section("Batterihälsa") {
             Row2("SoH", f(h?.sohPct, 1, "%"))
@@ -330,8 +330,6 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
         Section("Ström & spänning") {
             Row2("Spänning", f(m.voltageV, 1, "V"))
             Row2("Ström", f(m.currentA, 1, "A"))
-            Row2("Max laddeffekt nu", f(m.availChargeKw, 1, "kW"))
-            Row2("Max uteffekt nu", f(m.availDischargeKw, 1, "kW"))
             Row2("Topp laddning (session)", f(s.peakChargeKw, 1, "kW"))
             Row2("Topp uttag (session)", f(s.peakDischargeKw, 1, "kW"))
             Row2("12V-batteri", f(m.auxV, 1, "V"))
@@ -359,11 +357,11 @@ fun BatteryTab(vm: ScannerViewModel, s: UiState) {
             )
         }
 
-        if (!(s.isCharging == true || s.charger.socketConnected == true)) ChargingSection(s, m)
+        if (!(s.isCharging == true || s.isPlugged == true)) ChargingSection(s, m)
 
         Section("Status") {
             Row2("Laddar", yn(s.isCharging))
-            Row2("Laddkabel ansluten", yn(s.charger.socketConnected))
+            Row2("Laddkabel ansluten", yn(s.isPlugged))
             Row2("Huvudrelä", yn(s.charger.mainRelay ?: m.mainRelay))
             Row2("Motorvarvtal", i(m.motorRpm, "rpm"))
             Row2("Isolationsresistans", i(m.isolationKohm, "kΩ"))
@@ -395,13 +393,20 @@ fun ChargingSection(s: UiState, m: BatteryMain) {
         }
         Row2("Laddar", type, valueColor = if (s.isCharging == true) Green else Color.White)
         Row2("Effekt in i batteriet", f(m.powerKw?.let { maxOf(0.0, -it) }, 1, "kW"))
-        Row2("Beräknad laddeffekt (VCMS)", f(c.estimatedPowerW?.takeIf { it > 0 }?.div(1000.0), 1, "kW"))
+        Row2("Ström in", f(m.currentA?.let { maxOf(0.0, -it) }, 1, "A"))
+        Row2("Laddmål (BMS)", "${f(m.targetVoltageV, 1, "V")} · ${f(m.targetCurrentA, 1, "A")}")
+        if (c.dcCharging == true || c.evseMaxCurrent?.let { it > 0 } == true) {
+            Row2("Laddstation max", "${f(c.evseMaxVoltage, 0, "V")} · ${f(c.evseMaxCurrent, 0, "A")}")
+            Row2("Laddstation nu", "${f(c.evseVoltage, 1, "V")} · ${f(c.evseCurrent, 1, "A")}")
+        }
         Row2("Ombordladdare AC", "${f(c.obcAcCurrent, 1, "A")} · ${i(c.obcAcVoltage, "V")}")
         Row2("Ombordladdare DC", "${f(c.obcDcCurrent, 1, "A")} · ${f(c.obcDcVoltage, 0, "V")}")
-        Row2("Laddkabel (CP)", "${f(c.cpVoltage, 1, "V")} · ${f(c.cpDuty, 0, "%")}")
+        Row2("Laddkabel ansluten", yn(s.isPlugged))
+        Row2("Laddsignal (CP)", "${f(c.cpVoltage, 1, "V")} · ${f(c.cpDuty, 1, "%")}")
         val mins = listOfNotNull(c.acMinutesSincePlug, c.dcMinutesSincePlug).maxOrNull()
         Row2("Tid sedan inkoppling", i(mins, "min"))
         Row2("Laddintag AC / DC", "${i(c.acInletT)} / ${i(c.dcInletT1)} °C")
+        Row2("Batteritemperatur", "${i(m.tempMin)} … ${i(m.tempMax, "°C")}")
     }
 }
 

@@ -9,8 +9,9 @@ package se.ev3scan
  */
 data class BatteryMain(
     val socBms: Double?,
-    val availChargeKw: Double?,
-    val availDischargeKw: Double?,
+    /** Laddmål från BMS (maxspänning / begärd ström). Verifierat mot EV3 under DC-laddning. */
+    val targetVoltageV: Double?,
+    val targetCurrentA: Double?,
     val charging: Boolean?,
     val rapidPlug: Boolean?,
     val normalPlug: Boolean?,
@@ -73,8 +74,8 @@ object Ev3Decoder {
 
     fun decodeMain(d: ByteArray) = BatteryMain(
         socBms = u8(d, 4)?.div(2.0),
-        availChargeKw = u16(d, 5)?.div(100.0),
-        availDischargeKw = u16(d, 7)?.div(100.0),
+        targetVoltageV = u16(d, 5)?.div(10.0),
+        targetCurrentA = u16(d, 7)?.div(10.0),
         charging = bit(d, 9, 0x80),
         rapidPlug = bit(d, 9, 0x40),
         normalPlug = bit(d, 9, 0x20),
@@ -123,7 +124,10 @@ data class ChargerInfo(
     val obcDcCurrent: Double? = null,
     val obcAcCurrent: Double? = null,
     val obcAcVoltage: Int? = null,
-    val estimatedPowerW: Int? = null,
+    val evseMaxVoltage: Double? = null,
+    val evseMaxCurrent: Double? = null,
+    val evseVoltage: Double? = null,
+    val evseCurrent: Double? = null,
     val cpVoltage: Double? = null,
     val cpDuty: Double? = null,
     val acMinutesSincePlug: Int? = null,
@@ -139,6 +143,7 @@ object VcmsDecoder {
     const val TX = "744"
     const val RX = "74C"
     const val DID_E001 = 0xE001
+    const val DID_E002 = 0xE002
     const val DID_E003 = 0xE003
     const val DID_E004 = 0xE004
 
@@ -154,7 +159,13 @@ object VcmsDecoder {
         obcDcCurrent = u16(d, 21)?.div(10.0),
         obcAcCurrent = u16(d, 23)?.div(10.0),
         obcAcVoltage = u8(d, 25),
-        estimatedPowerW = u16(d, 28)?.let { it * 10 - 50 },
+    )
+
+    fun applyE002(c: ChargerInfo, d: ByteArray) = c.copy(
+        evseMaxVoltage = u16(d, 9)?.div(10.0),
+        evseMaxCurrent = u16(d, 11)?.div(10.0),
+        evseVoltage = u16(d, 17)?.div(10.0),
+        evseCurrent = u16(d, 19)?.div(10.0),
     )
 
     fun applyE003(c: ChargerInfo, d: ByteArray) = c.copy(
@@ -166,7 +177,8 @@ object VcmsDecoder {
 
     fun applyE004(c: ChargerInfo, d: ByteArray) = c.copy(
         mainRelay = bit(d, 4, 0x04),
-        socketConnected = bit(d, 4, 0x02),
+        // OBDb anger 0x02, men på riktig EV3 är det 0x01 som slår om när kabeln sitter i
+        socketConnected = bit(d, 4, 0x01),
         dcInletT1 = u8(d, 8)?.minus(50),
         dcInletT2 = u8(d, 9)?.minus(50),
         acInletT = u8(d, 10)?.minus(50),

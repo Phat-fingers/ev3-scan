@@ -52,9 +52,19 @@ data class UiState(
     val log: List<String> = emptyList(),
 ) {
     /** Laddar: VCMS-flaggor i första hand, annars negativ batteriström med stillastående motor. */
+    /** Kabel i: E004-biten eller laddsignal (CP) över 2 V. */
+    val isPlugged: Boolean?
+        get() = when {
+            charger.socketConnected == true -> true
+            (charger.cpVoltage ?: 0.0) > 2.0 -> true
+            charger.socketConnected == false -> false
+            else -> null
+        }
+
     val isCharging: Boolean?
         get() {
             if (charger.acCharging == true || charger.dcCharging == true) return true
+            if (charger.acCharging == false && charger.dcCharging == false && main?.currentA?.let { it > -1.0 } == true) return false
             val m = main ?: return null
             val cur = m.currentA ?: return null
             if (cur < -1.0 && (m.motorRpm ?: 0) == 0) return true
@@ -250,6 +260,9 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
         var ok = false
         try { c = VcmsDecoder.applyE001(c, readDid(t, VcmsDecoder.DID_E001, VcmsDecoder.TX, VcmsDecoder.RX, true)); ok = true } catch (_: ElmException) { }
         try { c = VcmsDecoder.applyE004(c, readDid(t, VcmsDecoder.DID_E004, VcmsDecoder.TX, VcmsDecoder.RX, true)); ok = true } catch (_: ElmException) { }
+        if (full && (c.socketConnected == true || (_state.value.main?.currentA ?: 0.0) < -1.0)) {
+            try { c = VcmsDecoder.applyE002(c, readDid(t, VcmsDecoder.DID_E002, VcmsDecoder.TX, VcmsDecoder.RX, true)) } catch (_: ElmException) { }
+        }
         if (full) {
             try { c = VcmsDecoder.applyE003(c, readDid(t, VcmsDecoder.DID_E003, VcmsDecoder.TX, VcmsDecoder.RX, true)) } catch (_: ElmException) { }
         }
