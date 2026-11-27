@@ -37,14 +37,32 @@ Bluetooth OBD2-adapter. Ingen reklam, ingen inloggning, ingen data lämnar telef
 
 ## Installera
 
-1. Ladda ner senaste `EV3Scan-*.apk` under [**Releases**](../../releases/latest).
-2. Öppna filen på telefonen och tillåt "installera okända appar" för webbläsaren/filhanteraren.
-3. Sätt i adaptern i OBD-uttaget (under ratten, vänster sida).
-4. Slå på bilen (READY) eller låt den ladda.
-5. Öppna appen → **Sök adapter** → välj adaptern.
-   *Parkoppla den inte i Androids Bluetooth-inställningar – appen ansluter själv.*
-
+Appen finns inte i Google Play, så den installeras som en APK-fil direkt från GitHub.
 Kräver Android 8.0 eller senare.
+
+**1. Ladda ner**
+1. Öppna [**senaste versionen**](../../releases/latest) i mobilens webbläsare.
+2. Scrolla ner till **Assets** och tryck på `EV3Scan-….apk`.
+3. Bekräfta nedladdningen om webbläsaren varnar för filtypen.
+
+**2. Installera**
+1. Öppna den nedladdade filen (tryck på aviseringen, eller hitta den i *Filer → Nedladdningar*).
+2. Första gången: Android säger att appar från okända källor är blockerade → tryck
+   **Inställningar** → slå på **Tillåt från denna källa** → gå tillbaka.
+3. Tryck **Installera**.
+4. Visar Google Play Protect en varning ("Okänd app" / "Skanna appen") → välj
+   **Installera ändå** eller **Skanna appen**. Varningen kommer för alla appar som inte
+   ligger i Play Butik.
+
+**3. Anslut till bilen**
+1. Sätt i adaptern i OBD-uttaget (under ratten, vänster sida).
+2. Slå på bilen (READY) eller låt den ladda.
+3. Öppna EV3 Scan → **Ge Bluetooth-behörighet** → **Sök adapter** → välj adaptern.
+   *Parkoppla den inte i Androids Bluetooth-inställningar – appen ansluter själv.*
+4. Nästa gång räcker **Anslut senaste**.
+
+**Uppdatera:** ladda ner och installera nya versionen på samma sätt – den installeras ovanpå
+och dina inställningar behålls.
 
 ## Adapter
 
